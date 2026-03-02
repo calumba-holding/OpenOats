@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>On The Spot</string>
+    <key>CFBundleDisplayName</key>
+    <string>On The Spot</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.onthespot.app</string>
+    <key>CFBundleVersion</key>
+    <string>2.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.0.0</string>
+    <key>CFBundleExecutable</key>
+    <string>OnTheSpot</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>26.0</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>On The Spot needs microphone access to transcribe your voice in real-time during conversations.</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>On The Spot needs screen capture permission to capture system audio from other participants.</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
+</dict>
+</plist>
