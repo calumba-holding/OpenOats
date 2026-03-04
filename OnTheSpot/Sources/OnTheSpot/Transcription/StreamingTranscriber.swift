@@ -35,66 +35,85 @@ final class StreamingTranscriber: @unchecked Sendable {
         self.onFinal = onFinal
     }
 
+    /// Silero VAD expects chunks of 4096 samples (256ms at 16kHz).
+    private static let vadChunkSize = 4096
+    /// Flush speech for transcription every ~3 seconds (48,000 samples at 16kHz).
+    private static let flushInterval = 48_000
+
     /// Main loop: reads audio buffers, runs VAD, transcribes speech segments.
     func run(stream: AsyncStream<AVAudioPCMBuffer>) async {
         var vadState = await vadManager.makeStreamState()
         var speechSamples: [Float] = []
+        var vadBuffer: [Float] = []
         var isSpeaking = false
+        var bufferCount = 0
 
         for await buffer in stream {
-            // Resample to 16kHz mono
-            guard let samples = resample(buffer) else { continue }
+            bufferCount += 1
+            if bufferCount <= 3 {
+                let fmt = buffer.format
+                diagLog("[\(speaker.rawValue)] buffer #\(bufferCount): frames=\(buffer.frameLength) sr=\(fmt.sampleRate) ch=\(fmt.channelCount) interleaved=\(fmt.isInterleaved) common=\(fmt.commonFormat.rawValue)")
+            }
 
-            // Run VAD on this chunk
-            do {
-                let result = try await vadManager.processStreamingChunk(
-                    samples,
-                    state: vadState,
-                    config: .default,
-                    returnSeconds: true,
-                    timeResolution: 2
-                )
-                vadState = result.state
+            guard let samples = extractSamples(buffer) else { continue }
 
-                if let event = result.event {
-                    switch event.kind {
-                    case .speechStart:
-                        isSpeaking = true
-                        speechSamples.removeAll(keepingCapacity: true)
-                        log.debug("[\(self.speaker.rawValue)] speech start")
+            if bufferCount <= 3 {
+                let maxVal = samples.max() ?? 0
+                diagLog("[\(speaker.rawValue)] samples: count=\(samples.count) max=\(maxVal)")
+            }
 
-                    case .speechEnd:
-                        isSpeaking = false
-                        log.debug("[\(self.speaker.rawValue)] speech end, samples=\(speechSamples.count)")
+            vadBuffer.append(contentsOf: samples)
 
-                        // Transcribe the accumulated segment
-                        if speechSamples.count > 8000 { // >0.5s at 16kHz
+            while vadBuffer.count >= Self.vadChunkSize {
+                let chunk = Array(vadBuffer.prefix(Self.vadChunkSize))
+                vadBuffer.removeFirst(Self.vadChunkSize)
+
+                do {
+                    let result = try await vadManager.processStreamingChunk(
+                        chunk,
+                        state: vadState,
+                        config: .default,
+                        returnSeconds: true,
+                        timeResolution: 2
+                    )
+                    vadState = result.state
+
+                    if let event = result.event {
+                        switch event.kind {
+                        case .speechStart:
+                            isSpeaking = true
+                            speechSamples.removeAll(keepingCapacity: true)
+                            diagLog("[\(self.speaker.rawValue)] speech start")
+
+                        case .speechEnd:
+                            isSpeaking = false
+                            diagLog("[\(self.speaker.rawValue)] speech end, samples=\(speechSamples.count)")
+                            if speechSamples.count > 8000 {
+                                let segment = speechSamples
+                                speechSamples.removeAll(keepingCapacity: true)
+                                await transcribeSegment(segment)
+                            } else {
+                                speechSamples.removeAll(keepingCapacity: true)
+                            }
+                        }
+                    }
+
+                    if isSpeaking {
+                        speechSamples.append(contentsOf: chunk)
+
+                        // Flush every ~3s for near-real-time output during continuous speech
+                        if speechSamples.count >= Self.flushInterval {
                             let segment = speechSamples
                             speechSamples.removeAll(keepingCapacity: true)
                             await transcribeSegment(segment)
-                        } else {
-                            speechSamples.removeAll(keepingCapacity: true)
                         }
                     }
+                } catch {
+                    log.error("VAD error: \(error.localizedDescription)")
                 }
-
-                // Accumulate samples during speech
-                if isSpeaking {
-                    speechSamples.append(contentsOf: samples)
-
-                    // Force-flush if segment gets too long (30s = 480,000 samples)
-                    if speechSamples.count > 480_000 {
-                        let segment = speechSamples
-                        speechSamples.removeAll(keepingCapacity: true)
-                        await transcribeSegment(segment)
-                    }
-                }
-            } catch {
-                log.error("VAD error: \(error.localizedDescription)")
             }
         }
 
-        // Flush any remaining speech on stream end
         if speechSamples.count > 8000 {
             await transcribeSegment(speechSamples)
         }
@@ -112,11 +131,25 @@ final class StreamingTranscriber: @unchecked Sendable {
         }
     }
 
-    /// Resample AVAudioPCMBuffer to 16kHz mono [Float].
-    private func resample(_ buffer: AVAudioPCMBuffer) -> [Float]? {
+    /// Extract [Float] samples from an AVAudioPCMBuffer, resampling if needed.
+    private func extractSamples(_ buffer: AVAudioPCMBuffer) -> [Float]? {
         let sourceFormat = buffer.format
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return nil }
 
-        // Set up converter on first buffer (or if format changes)
+        // Fast path: already Float32 at 16kHz (common for system audio from ScreenCaptureKit)
+        if sourceFormat.commonFormat == .pcmFormatFloat32 && sourceFormat.sampleRate == 16000 {
+            guard let channelData = buffer.floatChannelData else { return nil }
+            if sourceFormat.channelCount == 1 {
+                // Mono — direct copy
+                return Array(UnsafeBufferPointer(start: channelData[0], count: frameLength))
+            } else {
+                // Multi-channel — take first channel only
+                return Array(UnsafeBufferPointer(start: channelData[0], count: frameLength))
+            }
+        }
+
+        // Slow path: need to resample via AVAudioConverter
         if converter == nil || converter?.inputFormat != sourceFormat {
             converter = AVAudioConverter(from: sourceFormat, to: targetFormat)
         }

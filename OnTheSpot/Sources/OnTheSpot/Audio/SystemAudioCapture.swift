@@ -3,12 +3,20 @@
 import CoreMedia
 import os
 
-/// Captures system audio (other participants) via ScreenCaptureKit.
+/// Captures system audio and microphone via a single ScreenCaptureKit stream.
 final class SystemAudioCapture: NSObject, @unchecked Sendable, SCStreamDelegate, SCStreamOutput {
     private let _stream = OSAllocatedUnfairLock<SCStream?>(uncheckedState: nil)
-    private let _continuation = OSAllocatedUnfairLock<AsyncStream<AVAudioPCMBuffer>.Continuation?>(uncheckedState: nil)
+    private let _sysContinuation = OSAllocatedUnfairLock<AsyncStream<AVAudioPCMBuffer>.Continuation?>(uncheckedState: nil)
+    private let _micContinuation = OSAllocatedUnfairLock<AsyncStream<AVAudioPCMBuffer>.Continuation?>(uncheckedState: nil)
+    private let _audioLevel = AudioLevel()
 
-    func bufferStream() async throws -> AsyncStream<AVAudioPCMBuffer> {
+    var audioLevel: Float { _audioLevel.value }
+
+    struct CaptureStreams {
+        let systemAudio: AsyncStream<AVAudioPCMBuffer>
+    }
+
+    func bufferStream() async throws -> CaptureStreams {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
 
         guard let display = content.displays.first else {
@@ -21,7 +29,10 @@ final class SystemAudioCapture: NSObject, @unchecked Sendable, SCStreamDelegate,
         config.capturesAudio = true
         config.excludesCurrentProcessAudio = true
         config.channelCount = 1
-        config.sampleRate = 16000
+        config.sampleRate = 48000
+
+        // Enable microphone capture via ScreenCaptureKit is no longer needed
+        // since we use MicCapture for robust microphone audio.
 
         // Minimal video — we only want audio
         config.width = 2
@@ -31,62 +42,75 @@ final class SystemAudioCapture: NSObject, @unchecked Sendable, SCStreamDelegate,
         let scStream = SCStream(filter: filter, configuration: config, delegate: self)
         try scStream.addStreamOutput(self, type: .audio, sampleHandlerQueue: .global(qos: .userInteractive))
 
-        let audioStream = AsyncStream<AVAudioPCMBuffer> { cont in
-            self._continuation.withLock { $0 = cont }
-
-            cont.onTermination = { [weak self] _ in
-                guard let self else { return }
-                Task {
-                    try? await self._stream.withLock { $0 }?.stopCapture()
-                    self._stream.withLock { $0 = nil }
-                }
-            }
+        let sysStream = AsyncStream<AVAudioPCMBuffer> { cont in
+            self._sysContinuation.withLock { $0 = cont }
         }
 
         _stream.withLock { $0 = scStream }
         try await scStream.startCapture()
 
-        return audioStream
+        return CaptureStreams(systemAudio: sysStream)
     }
 
     func stop() async {
         try? await _stream.withLock { $0 }?.stopCapture()
         _stream.withLock { $0 = nil }
-        _continuation.withLock { $0?.finish(); $0 = nil }
+        _sysContinuation.withLock { $0?.finish(); $0 = nil }
+        _audioLevel.value = 0
     }
 
     // MARK: - SCStreamOutput
 
+    private let _sampleCount = OSAllocatedUnfairLock<Int>(uncheckedState: 0)
+
     nonisolated func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .audio else { return }
         guard let formatDesc = sampleBuffer.formatDescription,
-              let asbd = formatDesc.audioStreamBasicDescription else { return }
+              var asbd = formatDesc.audioStreamBasicDescription else { return }
 
-        guard let format = AVAudioFormat(
-            standardFormatWithSampleRate: asbd.mSampleRate,
-            channels: asbd.mChannelsPerFrame
-        ) else { return }
+        guard let format = AVAudioFormat(streamDescription: &asbd) else { return }
 
-        guard let blockBuffer = sampleBuffer.dataBuffer else { return }
-        let length = blockBuffer.dataLength
-        let frameCount = AVAudioFrameCount(length) / AVAudioFrameCount(asbd.mBytesPerFrame)
+        let frameCount = AVAudioFrameCount(sampleBuffer.numSamples)
+        guard frameCount > 0 else { return }
 
         guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return }
         pcmBuffer.frameLength = frameCount
 
-        try? blockBuffer.withUnsafeMutableBytes { rawPtr in
-            guard let srcPtr = rawPtr.baseAddress else { return }
-            memcpy(pcmBuffer.floatChannelData![0], srcPtr, length)
+        let status = CMSampleBufferCopyPCMDataIntoAudioBufferList(
+            sampleBuffer,
+            at: 0,
+            frameCount: Int32(frameCount),
+            into: pcmBuffer.mutableAudioBufferList
+        )
+        guard status == noErr else { return }
+
+        // Diagnostic: log raw system audio levels periodically
+        let count = _sampleCount.withLock { val -> Int in val += 1; return val }
+        if count <= 5 || count % 200 == 0 {
+            let rms = Self.normalizedRMS(from: pcmBuffer)
+            diagLog("[SYS-RAW] #\(count) frames=\(frameCount) sr=\(asbd.mSampleRate) ch=\(asbd.mChannelsPerFrame) rms=\(rms)")
         }
 
-        _ = _continuation.withLock { $0?.yield(pcmBuffer) }
+        _ = _sysContinuation.withLock { $0?.yield(pcmBuffer) }
     }
 
     // MARK: - SCStreamDelegate
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: any Error) {
         print("SystemAudioCapture: stream stopped with error: \(error)")
-        _continuation.withLock { $0?.finish(); $0 = nil }
+        _sysContinuation.withLock { $0?.finish(); $0 = nil }
+    }
+
+    private static func normalizedRMS(from buffer: AVAudioPCMBuffer) -> Float {
+        guard let channelData = buffer.floatChannelData else { return 0 }
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return 0 }
+        var sum: Float = 0
+        for i in 0..<frameLength {
+            let s = channelData[0][i]
+            sum += s * s
+        }
+        return sqrt(sum / Float(frameLength))
     }
 
     enum CaptureError: Error {
