@@ -1,6 +1,6 @@
-# WhisperKit Transcription Engine
+# FluidAudio Transcription Engine
 
-Replace `SFSpeechRecognizer` with WhisperKit for on-device transcription that works without Apple Intelligence.
+Replace `SFSpeechRecognizer` with FluidAudio (Parakeet-TDT + Silero VAD) for fast, accurate on-device transcription that works without Apple Intelligence.
 
 ## Problem
 
@@ -8,39 +8,38 @@ Apple's SpeechAnalyzer crashes on external boot drives. The fallback `SFSpeechRe
 
 ## Solution
 
-Use WhisperKit (whisper-base, ~140MB CoreML) with a VAD-triggered segmentation layer. Keep existing audio capture pipeline unchanged.
+Use FluidAudio SDK with Parakeet-TDT v2 (English-only, 600M params, 2.1% WER) and Silero VAD CoreML for speech boundary detection. Keep existing audio capture pipeline unchanged.
 
 ## Architecture
 
 ```
 MicCapture ──AsyncStream<AVAudioPCMBuffer>──┐
-                                             ├──▶ VADSegmenter ──▶ WhisperKit.transcribe()
-SystemAudioCapture ──AsyncStream<AVAudioPCMBuffer>──┘                      │
-                                                                           ▼
-                                                                    TranscriptStore
+                                             ├──▶ Resample 16kHz ──▶ Silero VAD ──▶ AsrManager.transcribe()
+SystemAudioCapture ──AsyncStream<AVAudioPCMBuffer>──┘                                       │
+                                                                                            ▼
+                                                                                     TranscriptStore
 ```
 
 ## Components
 
-### VADSegmenter (new)
+### StreamingTranscriber (new)
 
-Sits between audio streams and WhisperKit:
+Per-source transcription pipeline:
 
-1. Consumes `AsyncStream<AVAudioPCMBuffer>`
-2. Resamples to 16kHz mono via `AVAudioConverter`
-3. Energy-based VAD detects speech vs silence
+1. Consumes `AsyncStream<AVAudioPCMBuffer>` from mic or system audio
+2. Resamples to 16kHz mono via `AudioConverter` (FluidAudio utility)
+3. Runs Silero VAD streaming — detects `speechStart` / `speechEnd` events
 4. Accumulates `[Float]` samples during speech
-5. Emits completed segments on silence detection
-
-Config: silence threshold, min segment (0.5s), max segment (30s).
+5. On `speechEnd`, calls `AsrManager.transcribe(samples)` (110-190x RTFx)
+6. Feeds result to TranscriptStore
 
 ### TranscriptionEngine (modified)
 
-- Drop: `SFSpeechRecognizer`, `BufferRelay` actor, Speech framework import
-- Add: WhisperKit pipe init, VADSegmenter per audio source
-- Init downloads `base` model from HuggingFace on first run
+- Drop: `SFSpeechRecognizer`, `BufferRelay` actor, `Speech` framework import
+- Add: FluidAudio `AsrManager` + `VadManager` init
+- Models auto-download from HuggingFace on first run (~600MB + ~900KB)
 - `assetStatus` reflects model download/ready state
-- Two concurrent tasks: mic segments → transcribe(speaker: .you), sys segments → transcribe(speaker: .them)
+- Two concurrent tasks: mic → transcribe(speaker: .you), sys → transcribe(speaker: .them)
 
 ### Unchanged
 
@@ -53,14 +52,19 @@ Config: silence threshold, min segment (0.5s), max segment (30s).
 ## Dependencies
 
 ```swift
-.package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0")
+.package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.7.9")
 ```
 
-## Model
+## Models
 
-- whisper-base (~140MB CoreML)
-- Auto-downloaded on first launch
-- Cached in app support directory
-- Platform: macOS 13+ (WhisperKit minimum)
+- Parakeet-TDT v2 (~600MB CoreML, English-only, 2.1% WER, 110-190x RTFx)
+- Silero VAD v6 (~900KB CoreML, 1220x RTFx)
+- Auto-downloaded on first launch, cached in ~/Library/Application Support/FluidAudio/Models/
 
-Note: Our Package.swift targets macOS 26. WhisperKit supports macOS 13+, so no conflict.
+## Performance
+
+| Component | Speed | Accuracy |
+|-----------|-------|----------|
+| Silero VAD | 1220x real-time | 96% accuracy, 97.9% F1 |
+| Parakeet-TDT v2 | 110-190x real-time | 2.1% WER |
+| Total pipeline latency | ~0.5s after speech ends | — |
