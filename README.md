@@ -19,15 +19,20 @@ Think of it as Granola on steroids: it doesn't just take notes, it reads the roo
 
 Transcription is fully on-device. Your knowledge base is indexed with [Voyage AI](https://www.voyageai.com/) embeddings, and suggestions are generated through [OpenRouter](https://openrouter.ai/) (pick any model you like).
 
-## Quick start
+## Download
+
+Grab the latest DMG from the [Releases page](https://github.com/yazinsai/OpenGranola/releases/latest).
+
+Or build from source:
 
 ```bash
 ./scripts/build_swift_app.sh
 ```
 
-This builds and installs the app to `/Applications/OpenGranola.app`.
+## Quick start
 
-1. Launch the app and grant microphone + screen capture permissions
+1. Open the DMG and drag OpenGranola to Applications
+2. Launch the app and grant microphone + screen capture permissions
 2. Open Settings (`Cmd+,`) and add your Voyage AI and OpenRouter API keys
 3. Point it at a folder of `.md` or `.txt` files — that's your knowledge base
 4. Click **Idle** to go live
