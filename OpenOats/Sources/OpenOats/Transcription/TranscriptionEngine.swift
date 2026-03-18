@@ -79,6 +79,15 @@ final class TranscriptionEngine {
         lastError = nil
         refreshModelAvailability()
 
+        if let localeMismatchMessage = localeMismatchMessage(
+            for: locale,
+            transcriptionModel: transcriptionModel
+        ) {
+            lastError = localeMismatchMessage
+            assetStatus = "Ready"
+            return
+        }
+
         // Block start if models need downloading and user hasn't confirmed
         if needsModelDownload && !downloadConfirmed {
             return
@@ -478,9 +487,28 @@ final class TranscriptionEngine {
         }
     }
 
-    private func qwen3Language(for locale: Locale) -> Qwen3AsrConfig.Language? {
+    private func localeMismatchMessage(
+        for locale: Locale,
+        transcriptionModel: TranscriptionModel
+    ) -> String? {
+        guard transcriptionModel == .parakeetV2,
+              let languageCode = normalizedLanguageCode(for: locale),
+              languageCode != "en"
+        else {
+            return nil
+        }
+
+        let localeIdentifier = locale.identifier.replacingOccurrences(of: "_", with: "-")
+        return "Parakeet TDT v2 is English-only. Switch to Parakeet TDT v3 or Qwen3 ASR for \(localeIdentifier)."
+    }
+
+    private func normalizedLanguageCode(for locale: Locale) -> String? {
         let identifier = locale.identifier.replacingOccurrences(of: "_", with: "-")
-        let languageCode = identifier.split(separator: "-").first.map(String.init)
+        return identifier.split(separator: "-").first.map { String($0).lowercased() }
+    }
+
+    private func qwen3Language(for locale: Locale) -> Qwen3AsrConfig.Language? {
+        let languageCode = normalizedLanguageCode(for: locale)
         guard let languageCode else { return nil }
         return Qwen3AsrConfig.Language(from: languageCode)
     }

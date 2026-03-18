@@ -133,8 +133,18 @@ struct SettingsView: View {
                 }
                 .font(.system(size: 12))
 
-                TextField("Locale (e.g. en-US)", text: $settings.transcriptionLocale)
+                if settings.transcriptionModel.supportsExplicitLanguageHint {
+                    TextField(
+                        "\(settings.transcriptionModel.localeFieldTitle) (e.g. en-US)",
+                        text: $settings.transcriptionLocale
+                    )
                     .font(.system(size: 12, design: .monospaced))
+                }
+
+                Text(settings.transcriptionModel.localeHelpText)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section("Privacy") {

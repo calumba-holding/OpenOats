@@ -41,6 +41,35 @@ enum TranscriptionModel: String, CaseIterable, Identifiable {
             "Qwen3 ASR requires a one-time model download."
         }
     }
+
+    var supportsExplicitLanguageHint: Bool {
+        switch self {
+        case .qwen3ASR06B:
+            true
+        case .parakeetV2, .parakeetV3:
+            false
+        }
+    }
+
+    var localeFieldTitle: String {
+        switch self {
+        case .qwen3ASR06B:
+            "Language Hint"
+        case .parakeetV2, .parakeetV3:
+            "Locale"
+        }
+    }
+
+    var localeHelpText: String {
+        switch self {
+        case .parakeetV2:
+            "Parakeet TDT v2 is English-only. Locale changes do not affect this model."
+        case .parakeetV3:
+            "Parakeet TDT v3 auto-detects among its supported languages. Locale changes do not affect this model."
+        case .qwen3ASR06B:
+            "Optional. Used as a language hint for Qwen3 ASR. Enter a locale such as en-US, fr-FR, or ja-JP. Applies when a new session starts."
+        }
+    }
 }
 
 enum EmbeddingProvider: String, CaseIterable, Identifiable {
