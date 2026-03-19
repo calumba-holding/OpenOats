@@ -91,95 +91,231 @@ enum EmbeddingProvider: String, CaseIterable, Identifiable {
 @Observable
 @MainActor
 final class AppSettings {
+    // SwiftUI can evaluate view bodies outside a MainActor executor context in
+    // Swift 6.2. Use nonisolated backing storage plus manual observation
+    // tracking so bound settings remain safe to read during those updates.
+    @ObservationIgnored nonisolated(unsafe) private var _kbFolderPath: String
     var kbFolderPath: String {
-        didSet { UserDefaults.standard.set(kbFolderPath, forKey: "kbFolderPath") }
-    }
-
-    var notesFolderPath: String {
-        didSet { UserDefaults.standard.set(notesFolderPath, forKey: "notesFolderPath") }
-    }
-
-    var selectedModel: String {
-        didSet { UserDefaults.standard.set(selectedModel, forKey: "selectedModel") }
-    }
-
-    var transcriptionLocale: String {
-        didSet { UserDefaults.standard.set(transcriptionLocale, forKey: "transcriptionLocale") }
-    }
-
-    var transcriptionCustomVocabulary: String {
-        didSet {
-            UserDefaults.standard.set(
-                transcriptionCustomVocabulary,
-                forKey: "transcriptionCustomVocabulary"
-            )
+        get { access(keyPath: \.kbFolderPath); return _kbFolderPath }
+        set {
+            withMutation(keyPath: \.kbFolderPath) {
+                _kbFolderPath = newValue
+                UserDefaults.standard.set(newValue, forKey: "kbFolderPath")
+            }
         }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _notesFolderPath: String
+    var notesFolderPath: String {
+        get { access(keyPath: \.notesFolderPath); return _notesFolderPath }
+        set {
+            withMutation(keyPath: \.notesFolderPath) {
+                _notesFolderPath = newValue
+                UserDefaults.standard.set(newValue, forKey: "notesFolderPath")
+            }
+        }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _selectedModel: String
+    var selectedModel: String {
+        get { access(keyPath: \.selectedModel); return _selectedModel }
+        set {
+            withMutation(keyPath: \.selectedModel) {
+                _selectedModel = newValue
+                UserDefaults.standard.set(newValue, forKey: "selectedModel")
+            }
+        }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _transcriptionLocale: String
+    var transcriptionLocale: String {
+        get { access(keyPath: \.transcriptionLocale); return _transcriptionLocale }
+        set {
+            withMutation(keyPath: \.transcriptionLocale) {
+                _transcriptionLocale = newValue
+                UserDefaults.standard.set(newValue, forKey: "transcriptionLocale")
+            }
+        }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _transcriptionCustomVocabulary: String
+    var transcriptionCustomVocabulary: String {
+        get { access(keyPath: \.transcriptionCustomVocabulary); return _transcriptionCustomVocabulary }
+        set {
+            withMutation(keyPath: \.transcriptionCustomVocabulary) {
+                _transcriptionCustomVocabulary = newValue
+                UserDefaults.standard.set(newValue, forKey: "transcriptionCustomVocabulary")
+            }
+        }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _transcriptionModel: TranscriptionModel
     var transcriptionModel: TranscriptionModel {
-        didSet { UserDefaults.standard.set(transcriptionModel.rawValue, forKey: "transcriptionModel") }
+        get { access(keyPath: \.transcriptionModel); return _transcriptionModel }
+        set {
+            withMutation(keyPath: \.transcriptionModel) {
+                _transcriptionModel = newValue
+                UserDefaults.standard.set(newValue.rawValue, forKey: "transcriptionModel")
+            }
+        }
     }
 
     /// Stored as the AudioDeviceID integer. 0 means "use system default".
+    @ObservationIgnored nonisolated(unsafe) private var _inputDeviceID: AudioDeviceID
     var inputDeviceID: AudioDeviceID {
-        didSet { UserDefaults.standard.set(Int(inputDeviceID), forKey: "inputDeviceID") }
+        get { access(keyPath: \.inputDeviceID); return _inputDeviceID }
+        set {
+            withMutation(keyPath: \.inputDeviceID) {
+                _inputDeviceID = newValue
+                UserDefaults.standard.set(Int(newValue), forKey: "inputDeviceID")
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _openRouterApiKey: String
     var openRouterApiKey: String {
-        didSet { KeychainHelper.save(key: "openRouterApiKey", value: openRouterApiKey) }
+        get { access(keyPath: \.openRouterApiKey); return _openRouterApiKey }
+        set {
+            withMutation(keyPath: \.openRouterApiKey) {
+                _openRouterApiKey = newValue
+                KeychainHelper.save(key: "openRouterApiKey", value: newValue)
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _voyageApiKey: String
     var voyageApiKey: String {
-        didSet { KeychainHelper.save(key: "voyageApiKey", value: voyageApiKey) }
+        get { access(keyPath: \.voyageApiKey); return _voyageApiKey }
+        set {
+            withMutation(keyPath: \.voyageApiKey) {
+                _voyageApiKey = newValue
+                KeychainHelper.save(key: "voyageApiKey", value: newValue)
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _llmProvider: LLMProvider
     var llmProvider: LLMProvider {
-        didSet { UserDefaults.standard.set(llmProvider.rawValue, forKey: "llmProvider") }
+        get { access(keyPath: \.llmProvider); return _llmProvider }
+        set {
+            withMutation(keyPath: \.llmProvider) {
+                _llmProvider = newValue
+                UserDefaults.standard.set(newValue.rawValue, forKey: "llmProvider")
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _embeddingProvider: EmbeddingProvider
     var embeddingProvider: EmbeddingProvider {
-        didSet { UserDefaults.standard.set(embeddingProvider.rawValue, forKey: "embeddingProvider") }
+        get { access(keyPath: \.embeddingProvider); return _embeddingProvider }
+        set {
+            withMutation(keyPath: \.embeddingProvider) {
+                _embeddingProvider = newValue
+                UserDefaults.standard.set(newValue.rawValue, forKey: "embeddingProvider")
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _ollamaBaseURL: String
     var ollamaBaseURL: String {
-        didSet { UserDefaults.standard.set(ollamaBaseURL, forKey: "ollamaBaseURL") }
+        get { access(keyPath: \.ollamaBaseURL); return _ollamaBaseURL }
+        set {
+            withMutation(keyPath: \.ollamaBaseURL) {
+                _ollamaBaseURL = newValue
+                UserDefaults.standard.set(newValue, forKey: "ollamaBaseURL")
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _ollamaLLMModel: String
     var ollamaLLMModel: String {
-        didSet { UserDefaults.standard.set(ollamaLLMModel, forKey: "ollamaLLMModel") }
+        get { access(keyPath: \.ollamaLLMModel); return _ollamaLLMModel }
+        set {
+            withMutation(keyPath: \.ollamaLLMModel) {
+                _ollamaLLMModel = newValue
+                UserDefaults.standard.set(newValue, forKey: "ollamaLLMModel")
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _ollamaEmbedModel: String
     var ollamaEmbedModel: String {
-        didSet { UserDefaults.standard.set(ollamaEmbedModel, forKey: "ollamaEmbedModel") }
+        get { access(keyPath: \.ollamaEmbedModel); return _ollamaEmbedModel }
+        set {
+            withMutation(keyPath: \.ollamaEmbedModel) {
+                _ollamaEmbedModel = newValue
+                UserDefaults.standard.set(newValue, forKey: "ollamaEmbedModel")
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _openAIEmbedBaseURL: String
     var openAIEmbedBaseURL: String {
-        didSet { UserDefaults.standard.set(openAIEmbedBaseURL, forKey: "openAIEmbedBaseURL") }
+        get { access(keyPath: \.openAIEmbedBaseURL); return _openAIEmbedBaseURL }
+        set {
+            withMutation(keyPath: \.openAIEmbedBaseURL) {
+                _openAIEmbedBaseURL = newValue
+                UserDefaults.standard.set(newValue, forKey: "openAIEmbedBaseURL")
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _openAIEmbedApiKey: String
     var openAIEmbedApiKey: String {
-        didSet { KeychainHelper.save(key: "openAIEmbedApiKey", value: openAIEmbedApiKey) }
+        get { access(keyPath: \.openAIEmbedApiKey); return _openAIEmbedApiKey }
+        set {
+            withMutation(keyPath: \.openAIEmbedApiKey) {
+                _openAIEmbedApiKey = newValue
+                KeychainHelper.save(key: "openAIEmbedApiKey", value: newValue)
+            }
+        }
     }
 
+    @ObservationIgnored nonisolated(unsafe) private var _openAIEmbedModel: String
     var openAIEmbedModel: String {
-        didSet { UserDefaults.standard.set(openAIEmbedModel, forKey: "openAIEmbedModel") }
+        get { access(keyPath: \.openAIEmbedModel); return _openAIEmbedModel }
+        set {
+            withMutation(keyPath: \.openAIEmbedModel) {
+                _openAIEmbedModel = newValue
+                UserDefaults.standard.set(newValue, forKey: "openAIEmbedModel")
+            }
+        }
     }
 
     /// Whether the user has acknowledged their obligation to comply with recording consent laws.
+    @ObservationIgnored nonisolated(unsafe) private var _hasAcknowledgedRecordingConsent: Bool
     var hasAcknowledgedRecordingConsent: Bool {
-        didSet { UserDefaults.standard.set(hasAcknowledgedRecordingConsent, forKey: "hasAcknowledgedRecordingConsent") }
+        get { access(keyPath: \.hasAcknowledgedRecordingConsent); return _hasAcknowledgedRecordingConsent }
+        set {
+            withMutation(keyPath: \.hasAcknowledgedRecordingConsent) {
+                _hasAcknowledgedRecordingConsent = newValue
+                UserDefaults.standard.set(newValue, forKey: "hasAcknowledgedRecordingConsent")
+            }
+        }
     }
 
     /// When false, the live transcript panel is hidden during recording to save resources.
+    @ObservationIgnored nonisolated(unsafe) private var _showLiveTranscript: Bool
     var showLiveTranscript: Bool {
-        didSet { UserDefaults.standard.set(showLiveTranscript, forKey: "showLiveTranscript") }
+        get { access(keyPath: \.showLiveTranscript); return _showLiveTranscript }
+        set {
+            withMutation(keyPath: \.showLiveTranscript) {
+                _showLiveTranscript = newValue
+                UserDefaults.standard.set(newValue, forKey: "showLiveTranscript")
+            }
+        }
     }
 
     /// When true, all app windows are invisible to screen sharing / recording.
+    @ObservationIgnored nonisolated(unsafe) private var _hideFromScreenShare: Bool
     var hideFromScreenShare: Bool {
-        didSet {
-            UserDefaults.standard.set(hideFromScreenShare, forKey: "hideFromScreenShare")
-            applyScreenShareVisibility()
+        get { access(keyPath: \.hideFromScreenShare); return _hideFromScreenShare }
+        set {
+            withMutation(keyPath: \.hideFromScreenShare) {
+                _hideFromScreenShare = newValue
+                UserDefaults.standard.set(newValue, forKey: "hideFromScreenShare")
+                applyScreenShareVisibility()
+            }
         }
     }
 
@@ -191,42 +327,42 @@ final class AppSettings {
         Self.migrateFromOpenGranolaIfNeeded(defaults: defaults)
         Self.migrateKeychainServiceIfNeeded(defaults: defaults)
 
-        self.kbFolderPath = defaults.string(forKey: "kbFolderPath") ?? ""
+        self._kbFolderPath = defaults.string(forKey: "kbFolderPath") ?? ""
 
         let defaultNotesPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Documents/OpenOats").path
-        self.notesFolderPath = defaults.string(forKey: "notesFolderPath") ?? defaultNotesPath
-        self.selectedModel = defaults.string(forKey: "selectedModel") ?? "google/gemini-3-flash-preview"
-        self.transcriptionLocale = defaults.string(forKey: "transcriptionLocale") ?? "en-US"
-        self.transcriptionCustomVocabulary = defaults.string(forKey: "transcriptionCustomVocabulary") ?? ""
-        self.transcriptionModel = TranscriptionModel(
+        self._notesFolderPath = defaults.string(forKey: "notesFolderPath") ?? defaultNotesPath
+        self._selectedModel = defaults.string(forKey: "selectedModel") ?? "google/gemini-3-flash-preview"
+        self._transcriptionLocale = defaults.string(forKey: "transcriptionLocale") ?? "en-US"
+        self._transcriptionCustomVocabulary = defaults.string(forKey: "transcriptionCustomVocabulary") ?? ""
+        self._transcriptionModel = TranscriptionModel(
             rawValue: defaults.string(forKey: "transcriptionModel") ?? ""
         ) ?? .parakeetV2
-        self.inputDeviceID = AudioDeviceID(defaults.integer(forKey: "inputDeviceID"))
-        self.openRouterApiKey = KeychainHelper.load(key: "openRouterApiKey") ?? ""
-        self.voyageApiKey = KeychainHelper.load(key: "voyageApiKey") ?? ""
-        self.llmProvider = LLMProvider(rawValue: defaults.string(forKey: "llmProvider") ?? "") ?? .openRouter
-        self.embeddingProvider = EmbeddingProvider(rawValue: defaults.string(forKey: "embeddingProvider") ?? "") ?? .voyageAI
-        self.ollamaBaseURL = defaults.string(forKey: "ollamaBaseURL") ?? "http://localhost:11434"
-        self.ollamaLLMModel = defaults.string(forKey: "ollamaLLMModel") ?? "qwen3:8b"
-        self.ollamaEmbedModel = defaults.string(forKey: "ollamaEmbedModel") ?? "nomic-embed-text"
-        self.openAIEmbedBaseURL = defaults.string(forKey: "openAIEmbedBaseURL") ?? "http://localhost:8080"
-        self.openAIEmbedApiKey = KeychainHelper.load(key: "openAIEmbedApiKey") ?? ""
-        self.openAIEmbedModel = defaults.string(forKey: "openAIEmbedModel") ?? "text-embedding-3-small"
-        self.hasAcknowledgedRecordingConsent = defaults.bool(forKey: "hasAcknowledgedRecordingConsent")
+        self._inputDeviceID = AudioDeviceID(defaults.integer(forKey: "inputDeviceID"))
+        self._openRouterApiKey = KeychainHelper.load(key: "openRouterApiKey") ?? ""
+        self._voyageApiKey = KeychainHelper.load(key: "voyageApiKey") ?? ""
+        self._llmProvider = LLMProvider(rawValue: defaults.string(forKey: "llmProvider") ?? "") ?? .openRouter
+        self._embeddingProvider = EmbeddingProvider(rawValue: defaults.string(forKey: "embeddingProvider") ?? "") ?? .voyageAI
+        self._ollamaBaseURL = defaults.string(forKey: "ollamaBaseURL") ?? "http://localhost:11434"
+        self._ollamaLLMModel = defaults.string(forKey: "ollamaLLMModel") ?? "qwen3:8b"
+        self._ollamaEmbedModel = defaults.string(forKey: "ollamaEmbedModel") ?? "nomic-embed-text"
+        self._openAIEmbedBaseURL = defaults.string(forKey: "openAIEmbedBaseURL") ?? "http://localhost:8080"
+        self._openAIEmbedApiKey = KeychainHelper.load(key: "openAIEmbedApiKey") ?? ""
+        self._openAIEmbedModel = defaults.string(forKey: "openAIEmbedModel") ?? "text-embedding-3-small"
+        self._hasAcknowledgedRecordingConsent = defaults.bool(forKey: "hasAcknowledgedRecordingConsent")
 
         // Default to true (shown) if key has never been set
         if defaults.object(forKey: "showLiveTranscript") == nil {
-            self.showLiveTranscript = true
+            self._showLiveTranscript = true
         } else {
-            self.showLiveTranscript = defaults.bool(forKey: "showLiveTranscript")
+            self._showLiveTranscript = defaults.bool(forKey: "showLiveTranscript")
         }
 
         // Default to true (hidden) if key has never been set
         if defaults.object(forKey: "hideFromScreenShare") == nil {
-            self.hideFromScreenShare = true
+            self._hideFromScreenShare = true
         } else {
-            self.hideFromScreenShare = defaults.bool(forKey: "hideFromScreenShare")
+            self._hideFromScreenShare = defaults.bool(forKey: "hideFromScreenShare")
         }
 
         // Ensure notes folder exists

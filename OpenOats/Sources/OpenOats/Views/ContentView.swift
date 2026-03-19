@@ -226,7 +226,7 @@ struct ContentView: View {
         .onChange(of: settings.inputDeviceID) {
             if isRunning {
                 Task {
-                    await transcriptionEngine?.restartMic(inputDeviceID: settings.inputDeviceID)
+                    transcriptionEngine?.restartMic(inputDeviceID: settings.inputDeviceID)
                 }
             }
         }

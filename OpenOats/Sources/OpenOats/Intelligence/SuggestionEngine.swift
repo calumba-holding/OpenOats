@@ -7,11 +7,24 @@ import Observation
 @Observable
 @MainActor
 final class SuggestionEngine {
-    private(set) var suggestions: [Suggestion] = []
-    private(set) var isGenerating = false
+    @ObservationIgnored nonisolated(unsafe) private var _suggestions: [Suggestion] = []
+    private(set) var suggestions: [Suggestion] {
+        get { access(keyPath: \.suggestions); return _suggestions }
+        set { withMutation(keyPath: \.suggestions) { _suggestions = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _isGenerating = false
+    private(set) var isGenerating: Bool {
+        get { access(keyPath: \.isGenerating); return _isGenerating }
+        set { withMutation(keyPath: \.isGenerating) { _isGenerating = newValue } }
+    }
 
     /// The latest suggestion decision, even if it didn't surface (for logging).
-    private(set) var lastDecision: SuggestionDecision?
+    @ObservationIgnored nonisolated(unsafe) private var _lastDecision: SuggestionDecision?
+    private(set) var lastDecision: SuggestionDecision? {
+        get { access(keyPath: \.lastDecision); return _lastDecision }
+        set { withMutation(keyPath: \.lastDecision) { _lastDecision = newValue } }
+    }
 
     private let client = OpenRouterClient()
     private var currentTask: Task<Void, Never>?

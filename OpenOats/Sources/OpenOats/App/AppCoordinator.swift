@@ -23,17 +23,51 @@ struct ExternalCommandRequest: Identifiable, Equatable {
 @Observable
 @MainActor
 final class AppCoordinator {
-    let sessionStore = SessionStore()
-    let templateStore = TemplateStore()
-    let notesEngine = NotesEngine()
+    @ObservationIgnored private let _sessionStore = SessionStore()
+    nonisolated var sessionStore: SessionStore { _sessionStore }
 
-    var selectedTemplate: MeetingTemplate?
-    var lastEndedSession: SessionIndex?
-    var pendingExternalCommand: ExternalCommandRequest?
-    var requestedSessionSelectionID: String?
+    @ObservationIgnored private let _templateStore = TemplateStore()
+    nonisolated var templateStore: TemplateStore { _templateStore }
+
+    @ObservationIgnored private let _notesEngine = NotesEngine()
+    nonisolated var notesEngine: NotesEngine { _notesEngine }
+
+    @ObservationIgnored nonisolated(unsafe) private var _selectedTemplate: MeetingTemplate?
+    var selectedTemplate: MeetingTemplate? {
+        get { access(keyPath: \.selectedTemplate); return _selectedTemplate }
+        set { withMutation(keyPath: \.selectedTemplate) { _selectedTemplate = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _lastEndedSession: SessionIndex?
+    var lastEndedSession: SessionIndex? {
+        get { access(keyPath: \.lastEndedSession); return _lastEndedSession }
+        set { withMutation(keyPath: \.lastEndedSession) { _lastEndedSession = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _pendingExternalCommand: ExternalCommandRequest?
+    var pendingExternalCommand: ExternalCommandRequest? {
+        get { access(keyPath: \.pendingExternalCommand); return _pendingExternalCommand }
+        set { withMutation(keyPath: \.pendingExternalCommand) { _pendingExternalCommand = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _requestedSessionSelectionID: String?
+    var requestedSessionSelectionID: String? {
+        get { access(keyPath: \.requestedSessionSelectionID); return _requestedSessionSelectionID }
+        set { withMutation(keyPath: \.requestedSessionSelectionID) { _requestedSessionSelectionID = newValue } }
+    }
+
     /// Reflects whether a transcription session is currently active (set by ContentView).
-    var isRecording = false
-    private(set) var sessionHistory: [SessionIndex] = []
+    @ObservationIgnored nonisolated(unsafe) private var _isRecording = false
+    var isRecording: Bool {
+        get { access(keyPath: \.isRecording); return _isRecording }
+        set { withMutation(keyPath: \.isRecording) { _isRecording = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _sessionHistory: [SessionIndex] = []
+    private(set) var sessionHistory: [SessionIndex] {
+        get { access(keyPath: \.sessionHistory); return _sessionHistory }
+        set { withMutation(keyPath: \.sessionHistory) { _sessionHistory = newValue } }
+    }
 
     /// The template snapshot frozen at session start (not stop).
     private var sessionTemplateSnapshot: TemplateSnapshot?

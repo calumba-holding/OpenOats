@@ -9,10 +9,29 @@ final class TranscriptStore {
     private let acousticEchoMinimumWordCount = 4
     private let acousticEchoMinimumCharacterCount = 20
 
-    private(set) var utterances: [Utterance] = []
-    private(set) var conversationState: ConversationState = .empty
-    var volatileYouText: String = ""
-    var volatileThemText: String = ""
+    @ObservationIgnored nonisolated(unsafe) private var _utterances: [Utterance] = []
+    private(set) var utterances: [Utterance] {
+        get { access(keyPath: \.utterances); return _utterances }
+        set { withMutation(keyPath: \.utterances) { _utterances = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _conversationState: ConversationState = .empty
+    private(set) var conversationState: ConversationState {
+        get { access(keyPath: \.conversationState); return _conversationState }
+        set { withMutation(keyPath: \.conversationState) { _conversationState = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _volatileYouText = ""
+    var volatileYouText: String {
+        get { access(keyPath: \.volatileYouText); return _volatileYouText }
+        set { withMutation(keyPath: \.volatileYouText) { _volatileYouText = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _volatileThemText = ""
+    var volatileThemText: String {
+        get { access(keyPath: \.volatileThemText); return _volatileThemText }
+        set { withMutation(keyPath: \.volatileThemText) { _volatileThemText = newValue } }
+    }
 
     /// Count of finalized them-utterances since last state update
     private var themUtterancesSinceStateUpdate: Int = 0

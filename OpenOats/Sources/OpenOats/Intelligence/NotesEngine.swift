@@ -5,9 +5,23 @@ import Observation
 @Observable
 @MainActor
 final class NotesEngine {
-    private(set) var isGenerating = false
-    private(set) var generatedMarkdown = ""
-    private(set) var error: String?
+    @ObservationIgnored nonisolated(unsafe) private var _isGenerating = false
+    private(set) var isGenerating: Bool {
+        get { access(keyPath: \.isGenerating); return _isGenerating }
+        set { withMutation(keyPath: \.isGenerating) { _isGenerating = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _generatedMarkdown = ""
+    private(set) var generatedMarkdown: String {
+        get { access(keyPath: \.generatedMarkdown); return _generatedMarkdown }
+        set { withMutation(keyPath: \.generatedMarkdown) { _generatedMarkdown = newValue } }
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var _error: String?
+    private(set) var error: String? {
+        get { access(keyPath: \.error); return _error }
+        set { withMutation(keyPath: \.error) { _error = newValue } }
+    }
 
     private let client = OpenRouterClient()
     private var currentTask: Task<Void, Never>?

@@ -4,7 +4,12 @@ import Observation
 @Observable
 @MainActor
 final class TemplateStore {
-    private(set) var templates: [MeetingTemplate] = []
+    @ObservationIgnored nonisolated(unsafe) private var _templates: [MeetingTemplate] = []
+    private(set) var templates: [MeetingTemplate] {
+        get { access(keyPath: \.templates); return _templates }
+        set { withMutation(keyPath: \.templates) { _templates = newValue } }
+    }
+
     private let storageURL: URL
     private var templateVersion: Int = 1
 
